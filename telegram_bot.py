@@ -13,6 +13,30 @@ import json
 import re
 import warnings
 
+# Keep service alive (Render specific)
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from threading import Thread
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'Bot is running!')
+    
+    def log_message(self, format, *args):
+        pass
+
+def run_health_server():
+    port = int(os.getenv('PORT', 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    server.serve_forever()
+
+# Start health server in background
+health_thread = Thread(target=run_health_server, daemon=True)
+health_thread.start()
+
+
 warnings.filterwarnings('ignore')
 load_dotenv()
 
