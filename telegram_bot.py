@@ -12,6 +12,7 @@ from datetime import datetime
 import json
 import re
 import warnings
+from telegram.ext import JobQueue
 
 # Keep service alive (Render specific)
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -526,25 +527,24 @@ def main():
     
     print(f"✅ Loaded {len(tracked_chats)} tracked chats from database")
     
+    # Callback for periodic checks
+    async def scheduled_check(context: ContextTypes.DEFAULT_TYPE):
+        """Callback for scheduled playlist checks"""
+        print("🔄 Checking all playlists...")
+        await check_all_playlists(context.application)
+    
+    # Schedule periodic checks using job queue
+    job_queue = application.job_queue
+    job_queue.run_repeating(scheduled_check, interval=120, first=10)
+    
     # Start bot
     print("🤖 Telegram bot started!")
     print("✅ Ready to track Spotify playlists")
     print("📱 Send /start to your bot to begin")
     print("⏰ Checking playlists every 2 minutes")
     
-    # Run the bot with periodic checks
-    loop = asyncio.get_event_loop()
-    
-    # Create the periodic check task
-    check_task = loop.create_task(periodic_check_loop(application))
-    
-    try:
-        # Start polling
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
-    except KeyboardInterrupt:
-        print("\n🛑 Stopping bot...")
-    finally:
-        check_task.cancel()
+    # Start polling
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
