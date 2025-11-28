@@ -1,3 +1,6 @@
+import asyncio
+import threading
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
@@ -444,32 +447,6 @@ async def check_all_playlists(context: ContextTypes.DEFAULT_TYPE):
         chat_id = config['chat_id']
         await check_playlist_for_chat(context.application, chat_id)
 
-# async def post_init(application: Application):
-#     """Initialize after bot starts"""
-#     all_configs = config_collection.find({
-#         'platform': 'telegram',
-#         'setting': 'playlist_id'
-#     })
-    
-#     for config in all_configs:
-#         chat_id = config['chat_id']
-#         playlist_id = config['playlist_id']
-        
-#         saved_tracks, saved_data = get_saved_playlist_state('telegram', chat_id, playlist_id)
-        
-#         tracked_chats[chat_id] = {
-#             'playlist_id': playlist_id,
-#             'previous_tracks': saved_tracks
-#         }
-    
-#     print(f"✅ Loaded {len(tracked_chats)} tracked chats from database")
-    
-#     application.job_queue.run_repeating(
-#         check_all_playlists,
-#         interval=120,
-#         first=10
-#     )
-
 async def check_all_playlists(application):
     """Check all tracked playlists (runs every 2 minutes)"""
     all_configs = config_collection.find({
@@ -481,21 +458,11 @@ async def check_all_playlists(application):
         chat_id = config['chat_id']
         await check_playlist_for_chat(application, chat_id)
 
-async def periodic_check_loop(application):
-    """Background task to check playlists every 2 minutes"""
-    await asyncio.sleep(10)  # Wait 10 seconds before first check
-    
-    while True:
-        try:
-            print("🔄 Checking all playlists...")
-            await check_all_playlists(application)
-        except Exception as e:
-            print(f"❌ Error in periodic check: {e}")
-        
-        await asyncio.sleep(120)  # Wait 2 minutes
-
 def main():
     """Start the bot"""
+    import time
+    import threading
+    
     # Create application
     application = Application.builder().token(os.getenv('TELEGRAM_BOT_TOKEN')).build()
     
@@ -527,15 +494,34 @@ def main():
     
     print(f"✅ Loaded {len(tracked_chats)} tracked chats from database")
     
-    # Callback for periodic checks
-    async def scheduled_check(context: ContextTypes.DEFAULT_TYPE):
-        """Callback for scheduled playlist checks"""
-        print("🔄 Checking all playlists...")
-        await check_all_playlists(context.application)
+    # Background checker function
+    def background_playlist_checker():
+        """Check playlists in background thread"""
+        time.sleep(10)  # Wait 10 seconds before first check
+        
+        while True:
+            try:
+                print("🔄 Checking all playlists...")
+                
+                # Create new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # Run the check
+                loop.run_until_complete(check_all_playlists(application))
+                
+                # Close the loop
+                loop.close()
+                
+            except Exception as e:
+                print(f"❌ Error in periodic check: {e}")
+            
+            # Wait 2 minutes before next check
+            time.sleep(120)
     
-    # Schedule periodic checks using job queue
-    job_queue = application.job_queue
-    job_queue.run_repeating(scheduled_check, interval=120, first=10)
+    # Start background checker thread
+    checker_thread = threading.Thread(target=background_playlist_checker, daemon=True)
+    checker_thread.start()
     
     # Start bot
     print("🤖 Telegram bot started!")
@@ -543,7 +529,7 @@ def main():
     print("📱 Send /start to your bot to begin")
     print("⏰ Checking playlists every 2 minutes")
     
-    # Start polling
+    # Run bot polling (blocks here)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
