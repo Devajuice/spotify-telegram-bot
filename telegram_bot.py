@@ -25,21 +25,32 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
+        self.send_header('Content-Length', '15')
         self.end_headers()
         self.wfile.write(b'Bot is running!')
     
+    def do_HEAD(self):
+        """Handle HEAD requests (UptimeRobot uses these)"""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.send_header('Content-Length', '15')
+        self.end_headers()
+    
+    def do_POST(self):
+        """Handle POST requests"""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'Bot is running!')
+    
+    def do_OPTIONS(self):
+        """Handle OPTIONS requests"""
+        self.send_response(200)
+        self.send_header('Allow', 'GET, HEAD, POST, OPTIONS')
+        self.end_headers()
+    
     def log_message(self, format, *args):
-        pass
-
-def run_health_server():
-    port = int(os.getenv('PORT', 10000))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    server.serve_forever()
-
-# Start health server in background
-health_thread = Thread(target=run_health_server, daemon=True)
-health_thread.start()
-
+        pass  # Suppress logs
 
 warnings.filterwarnings('ignore')
 load_dotenv()
