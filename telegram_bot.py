@@ -22,35 +22,60 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
+    """Health check endpoint for Render/UptimeRobot"""
+    
     def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.send_header('Content-Length', '15')
-        self.end_headers()
-        self.wfile.write(b'Bot is running!')
+        """Handle GET requests"""
+        if self.path in ['/', '/health']:
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Content-Length', '15')
+            self.end_headers()
+            self.wfile.write(b'Bot is running!')
+        else:
+            self.send_response(404)
+            self.end_headers()
     
     def do_HEAD(self):
-        """Handle HEAD requests (UptimeRobot uses these)"""
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.send_header('Content-Length', '15')
-        self.end_headers()
+        """Handle HEAD requests (used by some monitoring services)"""
+        if self.path in ['/', '/health']:
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Content-Length', '15')
+            self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
     
     def do_POST(self):
         """Handle POST requests"""
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.end_headers()
-        self.wfile.write(b'Bot is running!')
+        self.do_GET()
     
     def do_OPTIONS(self):
-        """Handle OPTIONS requests"""
+        """Handle OPTIONS requests (CORS preflight)"""
         self.send_response(200)
         self.send_header('Allow', 'GET, HEAD, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS')
         self.end_headers()
     
     def log_message(self, format, *args):
-        pass  # Suppress logs
+        """Suppress HTTP access logs"""
+        pass
+
+def run_health_server():
+    """Start health check server"""
+    port = int(os.getenv('PORT', 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    print(f"✅ Health check server running on port {port}")
+    server.serve_forever()
+
+# Start health server thread
+health_thread = Thread(target=run_health_server, daemon=True)
+health_thread.start()
+print("✅ Health server started")
 
 warnings.filterwarnings('ignore')
 load_dotenv()
